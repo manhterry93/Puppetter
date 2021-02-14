@@ -1,5 +1,5 @@
 const puppeteer = require('puppeteer');
-
+var fs = require('fs');
 
 (async () => {
     const browser = await puppeteer.launch({
@@ -15,7 +15,7 @@ const puppeteer = require('puppeteer');
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
     await scrapeInfiniteScrollItems(page, extractItems, 100);
-    // await page.screenshot({ path: 'full.png', fullPage: true });
+
 
     let data = await page.evaluate(() => {
 
@@ -24,16 +24,16 @@ const puppeteer = require('puppeteer');
         product_wrapper.forEach((product) => {
             let dataJson = {};
             try {
-            dataJson.href = product.querySelector('.flash-sale-item-card-link').getAttribute('href');
+                dataJson.href = product.querySelector('.flash-sale-item-card-link').getAttribute('href').split('/')[1];
 
-            image_element = product.querySelector('.flash-sale-item-card__animated-image').style['background-image'];
-            console.log('image: ', image_element)
-            dataJson.image = image_element;
+                image_element = product.querySelector('.flash-sale-item-card__animated-image').style['background-image'];
+                console.log('image: ', image_element)
+                dataJson.image = image_element;
 
-            dataJson.title = product.querySelector('.flash-sale-item-card__item-name').innerText;
+                dataJson.title = product.querySelector('.flash-sale-item-card__item-name').innerText;
 
-            dataJson.price = product.querySelector('.flash-sale-item-card__original-price').querySelector('.item-price-number').innerText;
-            dataJson.salePrice = product.querySelector('.flash-sale-item-card__current-price').querySelector('.item-price-number').innerText;
+                dataJson.price = product.querySelector('.flash-sale-item-card__original-price').querySelector('.item-price-number').innerText;
+                dataJson.salePrice = product.querySelector('.flash-sale-item-card__current-price').querySelector('.item-price-number').innerText;
             } catch (err) {
                 console.log('error: ', err);
             }
@@ -42,13 +42,58 @@ const puppeteer = require('puppeteer');
         });
         return products;
     });
+    // Write result to json file
 
+    fs.writeFile('result.json', JSON.stringify(data), function (err) {
+        if (err) {
+            console.log('error: ', err)
+        } else {
+            console.log('loading success')
+        }
+    });
 
-    console.log(JSON.stringify(data));
-    // console.log(data);
+    // Page detail
+    for (let i = 0; i < data.length; i++) {
+        await enterProductDetail(page, data[i].href);
+    }
+
     await browser.close();
 })();
 
+
+async function enterProductDetail(page, href) {
+    // console.log(JSON.stringify(data));
+
+    if (href.startsWith('https://shopee.vn')) return;
+    await page.goto('https://shopee.vn/' + href, { waitUntil: 'load', timeout: 0 });
+    // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
+    let page_detail = await page.evaluate(() => {
+        let product = {};
+        let rate = document.getElementsByClassName('_527vrE');
+        product.isFlashSale = rate.length > 0
+
+        if (rate.length > 0) {
+            console.log('Is flash sale');
+        } else {
+            console.log('not flash sale');
+        }
+
+        // Rate
+        rated = document.getElementsByClassName('_22cC7R');
+        product.rated = rated.length > 0;
+
+        if (product.rated) {
+            product.rate = document.querySelector('._22cC7R').innerText;
+            let rate_elements = document.querySelectorAll('._3WXigY');
+            product.rate_count = rate_elements[1].innerText;
+            product.stock = document.querySelector('._2_ItKR').querySelector('.items-center').children[1].innerText.split(' ')[0];
+        }
+        return product;
+    });
+
+    console.log(JSON.stringify(page_detail));
+
+}
 
 async function scrapeInfiniteScrollItems(
     page,
