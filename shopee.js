@@ -44,7 +44,7 @@ var fs = require('fs');
     });
     // Write result to json file
 
-    fs.writeFile('result.json', JSON.stringify(data), function (err) {
+    await fs.writeFile('result.json', JSON.stringify(data), function (err) {
         if (err) {
             console.log('error: ', err)
         } else {
@@ -54,6 +54,8 @@ var fs = require('fs');
 
     // Page detail
     for (let i = 0; i < data.length; i++) {
+        console.log("find detail for: " + 'https://shopee.vn/' + data[i].href);
+        console.log('title: ' + data[i].title);
         await enterProductDetail(page, data[i].href);
     }
 
@@ -62,10 +64,10 @@ var fs = require('fs');
 
 
 async function enterProductDetail(page, href) {
-    // console.log(JSON.stringify(data));
+
 
     if (href.startsWith('https://shopee.vn')) return;
-    await page.goto('https://shopee.vn/' + href, { waitUntil: 'load', timeout: 0 });
+    await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 0 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
     let page_detail = await page.evaluate(() => {
         let product = {};
@@ -82,11 +84,12 @@ async function enterProductDetail(page, href) {
         rated = document.getElementsByClassName('_22cC7R');
         product.rated = rated.length > 0;
 
+        product.title = document.querySelector('._3ZV7fL').getElementsByTagName('span')[0].innerText;
+        product.stock = document.querySelector('._2_ItKR').querySelector('.items-center').children[1].innerText.split(' ')[0];
         if (product.rated) {
             product.rate = document.querySelector('._22cC7R').innerText;
             let rate_elements = document.querySelectorAll('._3WXigY');
             product.rate_count = rate_elements[1].innerText;
-            product.stock = document.querySelector('._2_ItKR').querySelector('.items-center').children[1].innerText.split(' ')[0];
         }
         return product;
     });
