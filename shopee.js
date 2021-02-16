@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 var fs = require('fs');
+const { deprecate } = require('util');
 
 (async () => {
     const browser = await puppeteer.launch({
@@ -64,8 +65,6 @@ var fs = require('fs');
 
 
 async function enterProductDetail(page, href) {
-
-
     if (href.startsWith('https://shopee.vn')) return;
     await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 0 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
@@ -95,7 +94,7 @@ async function enterProductDetail(page, href) {
     });
 
     console.log(JSON.stringify(page_detail));
-
+    return page_detail;
 }
 
 async function scrapeInfiniteScrollItems(
