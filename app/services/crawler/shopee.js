@@ -7,7 +7,7 @@ const { time } = require('console');
 
 async function scanFlashSale() {
     const browser = await puppeteer.launch({
-        headless: true, defaultViewport: null, args: [
+        headless: false, defaultViewport: null, args: [
             '--window-size=1920,1080',
         ]
     });
@@ -18,7 +18,7 @@ async function scanFlashSale() {
     });
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
-    await scrapeInfiniteScrollItems(page, extractItems, 100);
+    // await scrapeInfiniteScrollItems(page, extractItems, 100);
 
     let data = await page.evaluate(() => {
 
@@ -55,14 +55,14 @@ async function scanFlashSale() {
         }
     });
 
-    // Page detail
-    for (let i = 0; i < data.length; i++) {
-        console.log("find detail for: " + 'https://shopee.vn/' + data[i].href);
-        console.log('title: ' + data[i].title);
-        await get_product_detail(page, data[i].href);
-    }
+    // // Page detail
+    // for (let i = 0; i < data.length; i++) {
+    //     console.log("find detail for: " + 'https://shopee.vn/' + data[i].href);
+    //     console.log('title: ' + data[i].title);
+    //     await get_product_detail(page, data[i].href);
+    // }
 
-    await browser.close();
+    // await browser.close();
 }
 
 async function get_product_detail(page, href) {
