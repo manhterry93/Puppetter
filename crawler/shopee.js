@@ -1,8 +1,10 @@
 const puppeteer = require('puppeteer');
 var fs = require('fs');
-const { deprecate } = require('util');
+let bot = require('.././bot/tele_bot');
+const schedule = require('node-schedule');
+let curency_util = require('../utils/crawler_utils')
 
-(async () => {
+async function scanFlashSale() {
     const browser = await puppeteer.launch({
         headless: true, defaultViewport: null, args: [
             '--window-size=1920,1080',
@@ -16,7 +18,6 @@ const { deprecate } = require('util');
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
     await scrapeInfiniteScrollItems(page, extractItems, 100);
-
 
     let data = await page.evaluate(() => {
 
@@ -57,18 +58,20 @@ const { deprecate } = require('util');
     for (let i = 0; i < data.length; i++) {
         console.log("find detail for: " + 'https://shopee.vn/' + data[i].href);
         console.log('title: ' + data[i].title);
-        await enterProductDetail(page, data[i].href);
+        await get_product_detail(page, data[i].href);
     }
 
     await browser.close();
-})();
+}
 
-
-async function enterProductDetail(page, href) {
+async function get_product_detail(page, href) {
+    console.log('get_product_detail: ' + ('https://shopee.vn/' + href));
     if (href.startsWith('https://shopee.vn')) return;
-    await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 0 });
+    await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 20000 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
+    var _href = href;
     let page_detail = await page.evaluate(() => {
+
         let product = {};
         let rate = document.getElementsByClassName('_527vrE');
         product.isFlashSale = rate.length > 0
@@ -82,6 +85,8 @@ async function enterProductDetail(page, href) {
         // Rate
         rated = document.getElementsByClassName('_22cC7R');
         product.rated = rated.length > 0;
+        let price = document.querySelector('.AJyN7v').innerText;
+        product.price = price;
 
         product.title = document.querySelector('._3ZV7fL').getElementsByTagName('span')[0].innerText;
         product.stock = document.querySelector('._2_ItKR').querySelector('.items-center').children[1].innerText.split(' ')[0];
@@ -92,9 +97,40 @@ async function enterProductDetail(page, href) {
         }
         return product;
     });
-
+    page_detail.url = 'https://shopee.vn/' + href;
+    page_detail.price = curency_util.normalize_curency(page_detail.price);
     console.log(JSON.stringify(page_detail));
     return page_detail;
+}
+
+async function subscriberForProduct(product_href, min_price = 10000) {
+
+
+    const job = schedule.scheduleJob('* * */3 * * *', (date) => {
+        onJobDone(date, product_href, min_price);
+    });
+
+}
+async function onJobDone(detail, product_href, min_price = 10000) {
+    console.log('on job trigger: ' + product_href);
+    const browser = await puppeteer.launch({
+        headless: true, defaultViewport: null, args: [
+            '--window-size=1920,1080',
+        ]
+    });
+    const page = await browser.newPage();
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    await page.setViewport({
+        width: 1920,
+        height: 1080
+    });
+    let product_detail = await get_product_detail(page, product_href);
+
+    console.log('price: ' + product_detail.price);
+    if (product_detail.price <= min_price) {
+        bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
+    }
+    await browser.close();
 }
 
 async function scrapeInfiniteScrollItems(
@@ -158,3 +194,9 @@ const waitTillHTMLRendered = async (page, timeout = 30000) => {
         await page.waitFor(checkDurationMsecs);
     }
 };
+
+module.exports = {
+    scanFlashSale: scanFlashSale,
+    get_product_detail: get_product_detail,
+    subscriberForProduct: subscriberForProduct
+}
