@@ -13,7 +13,7 @@ router.post('/', function (req, res) {
         let href = body['href'];
         let price = body['price'];
         let interval = body['interval'] ?? 3600;
-        shopeeScaner.cancelAllSubscribers();
+        // shopeeScaner.cancelAllSubscribers();
         shopeeScaner.subscriberForProduct(href, price, interval);
         res.statusCode = 200;
         res.send('Subscribe for ' + 'https://shopee.vn/' + href + '\n Price: ' + price + '\nInterval: ' + interval);

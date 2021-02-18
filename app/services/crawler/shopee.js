@@ -4,6 +4,8 @@ let bot = require('.././bot/tele_bot');
 const schedule = require('node-schedule');
 let curency_util = require('../../utils/crawler_utils');
 const { time } = require('console');
+let db = require('../db/db');
+
 
 async function scanFlashSale() {
     const browser = await puppeteer.launch({
@@ -75,7 +77,7 @@ async function get_product_detail(page, href) {
 
         let product = {};
         let rate = document.getElementsByClassName('_527vrE');
-        product.isFlashSale = rate.length > 0
+        product.isFlashSale = rate.length > 0 ? 1 : 0
 
         if (rate.length > 0) {
             console.log('Is flash sale');
@@ -85,7 +87,7 @@ async function get_product_detail(page, href) {
 
         // Rate
         rated = document.getElementsByClassName('_22cC7R');
-        product.rated = rated.length > 0;
+        product.rated = rated.length > 0 ? 1 : 0;
         let price = document.querySelector('.AJyN7v').innerText;
         product.price = price;
 
@@ -112,7 +114,7 @@ async function get_product_detail(page, href) {
 async function subscriberForProduct(product_href, min_price = 10000, interval = 300) {
     let time_cron = '*/' + interval + ' * * * * *';
     console.log('time cron: ' + time_cron);
-    const job = schedule.scheduleJob(time_cron, (date) => {
+    const job = schedule.scheduleJob('*/30 * * * * *', (date) => {
         onJobDone(date, product_href, min_price);
     });
 }
@@ -142,6 +144,7 @@ async function onJobDone(detail, product_href, min_price = 10000) {
     if (product_detail.price <= min_price) {
         bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
     }
+    db.saveProductDetail(product_detail);
     await browser.close();
 }
 
