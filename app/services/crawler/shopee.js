@@ -5,11 +5,24 @@ const schedule = require('node-schedule');
 let curency_util = require('../../utils/crawler_utils');
 const { time } = require('console');
 let db = require('../db/db');
+const moment = require('moment');
+const crawler_utils = require('../../utils/crawler_utils');
+let current_time = '';
 
+const JOB_FLASH_SALE = 'flash_sale_job';
+
+function scheduleScanFlashSale(interval) {
+    schedule.cancelJob(JOB_FLASH_SALE);
+    let time_cron = '*/' + interval + ' * * * * *';
+    const job = schedule.scheduleJob(JOB_FLASH_SALE, '0 0 * ? * * *', (date) => {
+        console.log('job: ' + JOB_FLASH_SALE + " triggered");
+        scanFlashSale();
+    });
+}
 
 async function scanFlashSale() {
     const browser = await puppeteer.launch({
-        headless: false, defaultViewport: null, args: [
+        headless: true, defaultViewport: null, args: [
             '--window-size=1920,1080',
         ]
     });
@@ -20,13 +33,16 @@ async function scanFlashSale() {
     });
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
-    // await scrapeInfiniteScrollItems(page, extractItems, 100);
+    await scrapeInfiniteScrollItems(page, extractItems, 100);
 
-    let data = await page.evaluate(() => {
-
+    const current = moment().utc().format('YYYY-MM-DD hh:mm:ss');
+    console.log('time: '+current);
+    let normalizeCurency = (price) => crawler_utils.normalize_curency(price);
+    await page.exposeFunction("normalizeCurency", normalizeCurency);
+    let data = await page.evaluate(async (time) => {
         let products = [];
         let product_wrapper = document.querySelectorAll('.flash-sale-item-card');
-        product_wrapper.forEach((product) => {
+        for (const product of product_wrapper) {
             let dataJson = {};
             try {
                 dataJson.href = product.querySelector('.flash-sale-item-card-link').getAttribute('href').split('/')[1];
@@ -42,29 +58,19 @@ async function scanFlashSale() {
             } catch (err) {
                 console.log('error: ', err);
             }
-            products.push(dataJson)
-
-        });
-        return products;
-    });
-    // Write result to json file
-
-    await fs.writeFile('result.json', JSON.stringify(data), function (err) {
-        if (err) {
-            console.log('error: ', err)
-        } else {
-            console.log('loading success')
+            dataJson.last_update = time;
+            dataJson.price = await normalizeCurency(dataJson.price);
+            if (!dataJson.href.startsWith('https://shopee.vn')) {
+                // Just add product, not event, card,...
+                products.push(dataJson)
+            }
         }
-    });
+        return products;
+    }, current);
 
-    // // Page detail
-    // for (let i = 0; i < data.length; i++) {
-    //     console.log("find detail for: " + 'https://shopee.vn/' + data[i].href);
-    //     console.log('title: ' + data[i].title);
-    //     await get_product_detail(page, data[i].href);
-    // }
-
-    // await browser.close();
+    browser.close();
+    console.log('Loading products done => Saving to db ');
+    db.saveProductList(data);
 }
 
 async function get_product_detail(page, href) {
@@ -73,6 +79,7 @@ async function get_product_detail(page, href) {
     await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 20000 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
     var _href = href;
+    const current = moment().utc().format('YYYY-MM-DD HH:MM:SS')
     let page_detail = await page.evaluate(() => {
 
         let product = {};
@@ -100,6 +107,7 @@ async function get_product_detail(page, href) {
         }
         return product;
     });
+    page_detail.last_update = current;
     page_detail.url = 'https://shopee.vn/' + href;
     page_detail.price = curency_util.normalize_curency(page_detail.price);
     console.log(JSON.stringify(page_detail));
@@ -214,5 +222,6 @@ module.exports = {
     scanFlashSale: scanFlashSale,
     get_product_detail: get_product_detail,
     subscriberForProduct: subscriberForProduct,
-    cancelAllSubscribers: cancelAllSubscribers
+    cancelAllSubscribers: cancelAllSubscribers,
+    scheduleScanFlashSale: scheduleScanFlashSale
 }

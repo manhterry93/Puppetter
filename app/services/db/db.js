@@ -25,8 +25,8 @@ function saveProductDetail(product) {
             `VALUES ($1, $2, $3, $4, $5, $6)` +
             'ON CONFLICT (href) DO UPDATE ' +
             `SET title=$2 , rated=$3, rate=$4, ` +
-            ` rate_count = $5, stock=$6`,
-        values: [product.url, product.title, product.rated ?? 0, product.rate ?? 0, product.rate_count ?? 0, product.stock]
+            ` rate_count = $5, stock=$6 , last_update=$7`,
+        values: [product.url, product.title, product.rated ?? 0, product.rate ?? 0, product.rate_count ?? 0, product.stock, product.last_update]
     }
     client.query(query, (err, res) => {
         if (err) { // query = {
@@ -54,6 +54,59 @@ function saveProductDetail(product) {
     })
 }
 
+/**
+ * Generate a input key query for SQL ($1,$2,.....)
+ * 
+ * @param rowCount 
+ * @param columnCount 
+ * @param startAt 
+ */
+function expand(rowCount, columnCount, startAt = 1) {
+    var index = startAt;
+    return Array(rowCount)
+        .fill(0)
+        .map(
+            (v) =>
+                `(${Array(columnCount)
+                    .fill(0)
+                    .map((v) => `$${index++}`)
+                    .join(', ')})`,
+        )
+        .join(', ');
+}
+/**
+ * Flattern Input array to a unique array with all value <br/>
+ * eg:
+ * [[1, 2], [3, 4]] => [1, 2, 3, 4]
+ * 
+ */
+function flatten(arr) {
+    var newArr = [];
+    arr.forEach((v) => v.forEach((p) => newArr.push(p)));
+    return newArr;
+}
+
+function saveProductList(data) {
+    // Insert to product table: 4 columns
+    let keyQueries = expand(data.length, 4)
+    let valueQueries = data.map((product) => [
+        'https://shopee.vn/' + product.href,
+        product.title,
+        product.price,
+        product.last_update
+    ]);
+    let query = `INSERT INTO public.product (href, title, price, last_update) VALUES ${keyQueries} ` +
+        'ON CONFLICT (href) DO UPDATE SET title = excluded.title, price = excluded.price, last_update = excluded.last_update'
+    client.query(query, flatten(valueQueries), (err, res) => {
+        if (err) {
+            console.log('error when inserting product list', err.stack)
+        }else{
+            console.log('write to db done');
+        }
+    });
+}
+
 module.exports = {
-    saveProductDetail: saveProductDetail
+    saveProductDetail: saveProductDetail,
+    saveProductList: saveProductList
 }

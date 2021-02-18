@@ -1,10 +1,11 @@
 CREATE TABLE IF NOT EXISTS public.product(
     href text primary key,
     title text,
-    rated int,
-    rate numeric(2,1),
-    rate_count int,
-    stock int,
+    rated int default 0,
+    rate numeric(2,1) default 0.0,
+    rate_count int default 0,
+    stock int default 0,
+    price int
     last_update timestamp NOT NULL DEFAULT NOW()
 );
 

@@ -6,6 +6,7 @@ function normalize_curency(input) {
     return parseInt(result);
 }
 
+
 module.exports = {
     normalize_curency: normalize_curency
 }

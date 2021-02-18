@@ -11,13 +11,14 @@ const port = 3000
 
 // Routers
 let subscribers = require('./routes/subscriber');
+let scanner = require('./routes/scanner');
 
 app.get('/', (req, res) => {
     console.log('onreqquest: ', req.path);
     res.send('Hello World!')
 });
 
-app.use('/subscribe', subscribers);
+app.use('/scan', scanner);
 
 
 (async () => {
