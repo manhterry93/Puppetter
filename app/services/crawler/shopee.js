@@ -70,14 +70,14 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
     if (saveToDb) db.saveProductList(data);
 }
 
-async function get_product_detail(page, href) {
+async function get_product_detail(page, href, addToCart = false) {
     console.log('get_product_detail: ' + ('https://shopee.vn/' + href));
     if (href.startsWith('https://shopee.vn')) return;
     await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 20000 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
     var _href = href;
     const current = moment().utc().format('YYYY-MM-DD HH:MM:SS')
-    let page_detail = await page.evaluate(() => {
+    let [page_detail, disableCart] = await page.evaluate((isAddCart) => {
 
         let product = {};
         let rate = document.getElementsByClassName('_527vrE');
@@ -102,11 +102,23 @@ async function get_product_detail(page, href) {
             let rate_elements = document.querySelectorAll('._3WXigY');
             product.rate_count = rate_elements[1].innerText;
         }
-        return product;
-    });
+
+        // can add to cart 
+        disableCart = document.querySelector('._3AYAOB').getAttribute('aria-disabled') ?? false;
+        console.log('disable cart: ' + disableCart);
+
+        return [product, disableCart];
+    }, addToCart);
+
     page_detail.last_update = current;
     page_detail.url = 'https://shopee.vn/' + href;
     page_detail.price = curency_util.normalize_curency(page_detail.price);
+    /// Add to cart
+    console.log('add cart: ' + addToCart + ' ' + disableCart);
+    if (addToCart && !disableCart) {
+
+        await page.click('._3AYAOB');
+    }
     console.log(JSON.stringify(page_detail));
     return page_detail;
 }
@@ -116,11 +128,11 @@ async function get_product_detail(page, href) {
     @param min_price the min price, when product price is below or equal this value, TeleBot will notice user
     @param interval in second
     */
-async function subscriberForProduct(product_href, min_price = 10000, interval = 300) {
+async function subscriberForProduct(product_href, min_price = 10000, interval = 300, addToCart = false) {
     let time_cron = '*/' + interval + ' * * * * *';
     console.log('time cron: ' + time_cron);
     const job = schedule.scheduleJob('0 */30 * ? * *', (date) => {
-        onJobDone(date, product_href, min_price);
+        onJobDone(date, product_href, min_price, addToCart);
     });
 }
 
@@ -130,7 +142,7 @@ async function subscriberForProduct(product_href, min_price = 10000, interval = 
 function cancelAllSubscribers() {
     for (const job in schedule.scheduledJobs) schedule.cancelJob(job);
 }
-async function onJobDone(detail, product_href, min_price = 10000) {
+async function onJobDone(detail, product_href, min_price = 10000, addToCart = false) {
     console.log('on job trigger: ' + product_href);
     const browser = await puppeteer.launch({
         headless: true, defaultViewport: null, args: [
@@ -143,12 +155,14 @@ async function onJobDone(detail, product_href, min_price = 10000) {
         width: 1920,
         height: 1080
     });
+
     let product_detail = await get_product_detail(page, product_href);
 
     console.log('price: ' + product_detail.price);
     if (product_detail.price <= min_price) {
         bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
     }
+    // Update product detail
     db.saveProductDetail(product_detail);
     await browser.close();
 }
@@ -215,10 +229,30 @@ const waitTillHTMLRendered = async (page, timeout = 30000) => {
     }
 };
 
+
+async function testLogin() {
+    const browser = await puppeteer.launch({
+        headless: false,
+        executablePath: '/usr/bin/google-chrome',
+        args: ['--user-data-dir=/tmp/puppeteer']
+    });
+    const page = await browser.newPage();
+    await page.setViewport({
+        width: 1920,
+        height: 1080
+    });
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
+    await page.screenshot({ path: 'shopee.png' });
+    // browser.close();
+}
+
+
 module.exports = {
     scanFlashSale: scanFlashSale,
     get_product_detail: get_product_detail,
     subscriberForProduct: subscriberForProduct,
     cancelAllSubscribers: cancelAllSubscribers,
-    scheduleScanFlashSale: scheduleScanFlashSale
+    scheduleScanFlashSale: scheduleScanFlashSale,
+    testLogin: testLogin
 }
