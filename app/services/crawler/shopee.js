@@ -20,11 +20,9 @@ function scheduleScanFlashSale(interval) {
     });
 }
 
-async function scanFlashSale() {
+async function scanFlashSale(saveToDb = true, isHeadless = true) {
     const browser = await puppeteer.launch({
-        headless: true, defaultViewport: null, args: [
-            '--window-size=1920,1080',
-        ]
+        executablePath: '/usr/bin/google-chrome'
     });
     const page = await browser.newPage();
     await page.setViewport({
@@ -69,7 +67,7 @@ async function scanFlashSale() {
 
     browser.close();
     console.log('Loading products done => Saving to db ');
-    db.saveProductList(data);
+    if (saveToDb) db.saveProductList(data);
 }
 
 async function get_product_detail(page, href) {
@@ -121,7 +119,7 @@ async function get_product_detail(page, href) {
 async function subscriberForProduct(product_href, min_price = 10000, interval = 300) {
     let time_cron = '*/' + interval + ' * * * * *';
     console.log('time cron: ' + time_cron);
-    const job = schedule.scheduleJob('*/30 * * * * *', (date) => {
+    const job = schedule.scheduleJob('0 */30 * ? * *', (date) => {
         onJobDone(date, product_href, min_price);
     });
 }

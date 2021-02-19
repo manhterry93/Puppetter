@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/scan', scanner);
-
+app.use('/subscribe', subscribers);
 
 (async () => {
     await enableTelebot();

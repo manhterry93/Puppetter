@@ -18,5 +18,5 @@ async function enableTelebot() {
 }
 
 function test(){
-    shopeeScaner.scanFlashSale();
+    shopeeScaner.scanFlashSale(false, false);
 }
