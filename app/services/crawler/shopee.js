@@ -14,7 +14,7 @@ const JOB_FLASH_SALE = 'flash_sale_job';
 function scheduleScanFlashSale(interval) {
     schedule.cancelJob(JOB_FLASH_SALE);
     let time_cron = '*/' + interval + ' * * * * *';
-    const job = schedule.scheduleJob(JOB_FLASH_SALE, '0 0 * ? * * *', (date) => {
+    const job = schedule.scheduleJob(JOB_FLASH_SALE, '0 0 * ? * *', (date) => {
         console.log('job: ' + JOB_FLASH_SALE + " triggered");
         scanFlashSale();
     });
@@ -36,7 +36,7 @@ async function scanFlashSale() {
     await scrapeInfiniteScrollItems(page, extractItems, 100);
 
     const current = moment().utc().format('YYYY-MM-DD hh:mm:ss');
-    console.log('time: '+current);
+    console.log('time: ' + current);
     let normalizeCurency = (price) => crawler_utils.normalize_curency(price);
     await page.exposeFunction("normalizeCurency", normalizeCurency);
     let data = await page.evaluate(async (time) => {
@@ -48,7 +48,6 @@ async function scanFlashSale() {
                 dataJson.href = product.querySelector('.flash-sale-item-card-link').getAttribute('href').split('/')[1];
 
                 image_element = product.querySelector('.flash-sale-item-card__animated-image').style['background-image'];
-                console.log('image: ', image_element)
                 dataJson.image = image_element;
 
                 dataJson.title = product.querySelector('.flash-sale-item-card__item-name').innerText;
@@ -60,8 +59,8 @@ async function scanFlashSale() {
             }
             dataJson.last_update = time;
             dataJson.price = await normalizeCurency(dataJson.price);
-            if (!dataJson.href.startsWith('https://shopee.vn')) {
-                // Just add product, not event, card,...
+            if (Boolean(dataJson.href) && !dataJson.href.startsWith('https://shopee.vn') && dataJson.href.length > 0) {
+                // Just add product, not event, card,...               
                 products.push(dataJson)
             }
         }
