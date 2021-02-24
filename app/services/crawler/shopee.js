@@ -8,6 +8,8 @@ let db = require('../db/db');
 const moment = require('moment');
 const crawler_utils = require('../../utils/crawler_utils');
 let current_time = '';
+const { exec } = require("child_process");
+
 
 const JOB_FLASH_SALE = 'flash_sale_job';
 
@@ -64,6 +66,7 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
         }
         return products;
     }, current);
+
 
     browser.close();
     console.log('Loading products done => Saving to db ');
@@ -160,7 +163,7 @@ async function onJobDone(detail, product_href, min_price = 10000, addToCart = fa
 
     console.log('price: ' + product_detail.price);
     if (product_detail.price <= min_price) {
-        bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
+        publishProductNotifty(product_detail.url);
     }
     // Update product detail
     db.saveProductDetail(product_detail);
@@ -198,36 +201,36 @@ function extractItems() {
 }
 
 
-const waitTillHTMLRendered = async (page, timeout = 30000) => {
-    const checkDurationMsecs = 1000;
-    const maxChecks = timeout / checkDurationMsecs;
-    let lastHTMLSize = 0;
-    let checkCounts = 1;
-    let countStableSizeIterations = 0;
-    const minStableSizeIterations = 3;
+// const waitTillHTMLRendered = async (page, timeout = 30000) => {
+//     const checkDurationMsecs = 1000;
+//     const maxChecks = timeout / checkDurationMsecs;
+//     let lastHTMLSize = 0;
+//     let checkCounts = 1;
+//     let countStableSizeIterations = 0;
+//     const minStableSizeIterations = 3;
 
-    while (checkCounts++ <= maxChecks) {
-        let html = await page.content();
-        let currentHTMLSize = html.length;
+//     while (checkCounts++ <= maxChecks) {
+//         let html = await page.content();
+//         let currentHTMLSize = html.length;
 
-        let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length);
+//         let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length);
 
-        console.log('last: ', lastHTMLSize, ' <> curr: ', currentHTMLSize, " body html size: ", bodyHTMLSize);
+//         console.log('last: ', lastHTMLSize, ' <> curr: ', currentHTMLSize, " body html size: ", bodyHTMLSize);
 
-        if (lastHTMLSize != 0 && currentHTMLSize == lastHTMLSize)
-            countStableSizeIterations++;
-        else
-            countStableSizeIterations = 0; //reset the counter
+//         if (lastHTMLSize != 0 && currentHTMLSize == lastHTMLSize)
+//             countStableSizeIterations++;
+//         else
+//             countStableSizeIterations = 0; //reset the counter
 
-        if (countStableSizeIterations >= minStableSizeIterations) {
-            console.log("Page rendered fully..");
-            break;
-        }
+//         if (countStableSizeIterations >= minStableSizeIterations) {
+//             console.log("Page rendered fully..");
+//             break;
+//         }
 
-        lastHTMLSize = currentHTMLSize;
-        await page.waitFor(checkDurationMsecs);
-    }
-};
+//         lastHTMLSize = currentHTMLSize;
+//         await page.waitFor(checkDurationMsecs);
+//     }
+// };
 
 
 async function testLogin() {
@@ -247,6 +250,22 @@ async function testLogin() {
     // browser.close();
 }
 
+function publishProductNotifty(href) {
+    // Send by bot
+    bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
+    // Send by NATS
+    exec('node ../pub_sub/pub.js href href', (err, stdout, stderr) => {
+        if (err) {
+            // node couldn't execute the command
+            console.log('Can not publish message: ', err);
+            return;
+        }
+
+        // the *entire* stdout and stderr (buffered)
+        console.log(`stdout: ${stdout}`);
+        console.log(`stderr: ${stderr}`);
+    });
+}
 
 module.exports = {
     scanFlashSale: scanFlashSale,

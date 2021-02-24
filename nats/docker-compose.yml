@@ -1,0 +1,14 @@
+version: "3"
+services:
+  nats:
+    image: crawler/nats
+    build: ./nats
+    command: "-c nats.conf"
+    ports:
+      - "24222:4222"
+      - "6222:6222"
+      - "28222:8222"
+    expose:
+      - "24222"
+      - " 6222"
+      - "28222"

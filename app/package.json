@@ -12,6 +12,7 @@
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
     "moment": "^2.29.1",
+    "nats": "^2.0.0-219",
     "node-schedule": "^2.0.0",
     "pg": "^8.5.1",
     "puppeteer": "^7.0.1",
