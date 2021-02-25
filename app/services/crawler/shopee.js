@@ -15,8 +15,8 @@ const JOB_FLASH_SALE = 'flash_sale_job';
 
 function scheduleScanFlashSale(interval) {
     schedule.cancelJob(JOB_FLASH_SALE);
-    let time_cron = '*/' + interval + ' * * * * *';
-    const job = schedule.scheduleJob(JOB_FLASH_SALE, '0 0 * ? * *', (date) => {
+    let time_cron = '0 0 * ? * *'; // Every hour
+    const job = schedule.scheduleJob(JOB_FLASH_SALE, time_cron, (date) => {
         console.log('job: ' + JOB_FLASH_SALE + " triggered");
         scanFlashSale();
     });
@@ -35,7 +35,7 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
     await page.goto('https://shopee.vn/flash_sale', { waitUntil: 'networkidle2' });
     await scrapeInfiniteScrollItems(page, extractItems, 100);
 
-    const current = moment().utc().format('YYYY-MM-DD hh:mm:ss');
+    const current = new Date().getTime();
     console.log('time: ' + current);
     let normalizeCurency = (price) => crawler_utils.normalize_curency(price);
     await page.exposeFunction("normalizeCurency", normalizeCurency);
@@ -60,6 +60,7 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
             dataJson.last_update = time;
             dataJson.price = await normalizeCurency(dataJson.price);
             if (Boolean(dataJson.href) && !dataJson.href.startsWith('https://shopee.vn') && dataJson.href.length > 0) {
+                dataJson.url="https://shopee.vn/"+dataJson.href;
                 // Just add product, not event, card,...               
                 products.push(dataJson)
             }
@@ -79,7 +80,7 @@ async function get_product_detail(page, href, addToCart = false) {
     await page.goto('https://shopee.vn/' + href, { waitUntil: 'networkidle2', timeout: 20000 });
     // Get info about: price, vote, vote count, sold amount, stock, sale count, is Flash sale
     var _href = href;
-    const current = moment().utc().format('YYYY-MM-DD HH:MM:SS')
+    const current = new Date().getTime();
     let [page_detail, disableCart] = await page.evaluate((isAddCart) => {
 
         let product = {};
@@ -132,9 +133,9 @@ async function get_product_detail(page, href, addToCart = false) {
     @param interval in second
     */
 async function subscriberForProduct(product_href, min_price = 10000, interval = 300, addToCart = false) {
-    let time_cron = '*/' + interval + ' * * * * *';
+    let time_cron = '0 */30 * ? * *'; // every 30 minutes
     console.log('time cron: ' + time_cron);
-    const job = schedule.scheduleJob('0 */30 * ? * *', (date) => {
+    const job = schedule.scheduleJob(time_cron, (date) => {
         onJobDone(date, product_href, min_price, addToCart);
     });
 }
@@ -145,6 +146,7 @@ async function subscriberForProduct(product_href, min_price = 10000, interval = 
 function cancelAllSubscribers() {
     for (const job in schedule.scheduledJobs) schedule.cancelJob(job);
 }
+
 async function onJobDone(detail, product_href, min_price = 10000, addToCart = false) {
     console.log('on job trigger: ' + product_href);
     const browser = await puppeteer.launch({
@@ -163,7 +165,7 @@ async function onJobDone(detail, product_href, min_price = 10000, addToCart = fa
 
     console.log('price: ' + product_detail.price);
     if (product_detail.price <= min_price) {
-        publishProductNotifty(product_detail.url);
+        publishProductNotifty(product_detail);
     }
     // Update product detail
     db.saveProductDetail(product_detail);
@@ -250,11 +252,11 @@ async function testLogin() {
     // browser.close();
 }
 
-function publishProductNotifty(href) {
+function publishProductNotifty(product_detail) {
     // Send by bot
     bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
     // Send by NATS
-    exec('node ../pub_sub/pub.js href href', (err, stdout, stderr) => {
+    exec('node ../pub_sub/pub.js "product_sale " '+JSON.stringify(product_detail), (err, stdout, stderr) => {
         if (err) {
             // node couldn't execute the command
             console.log('Can not publish message: ', err);

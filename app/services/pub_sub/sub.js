@@ -11,7 +11,7 @@ console.log('process: ',channel);
 (async () => {
 
     // to create a connection to a nats-server:
-    const nc = await connect({ servers: "127.0.0.1:4222" });
+    const nc = await connect({ servers: "nats://192.168.1.47:24222" });
 
     const sub = nc.subscribe(channel);
 
