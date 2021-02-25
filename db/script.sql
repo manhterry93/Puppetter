@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS public.product(
     rate numeric(2,1) default 0.0,
     rate_count int default 0,
     stock int default 0,
-    price int
-    last_update timestamp NOT NULL DEFAULT NOW()
+    price int,
+    last_update bigint
 );
 
 create table if not exists public.product_price(
@@ -14,6 +14,6 @@ create table if not exists public.product_price(
     price int,
     product_href text references public.product(href),
     is_flash_sale int,
-    created_at timestamp NOT NULL DEFAULT NOW()
+    created_at bigint
 );
 

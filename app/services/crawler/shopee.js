@@ -9,7 +9,7 @@ const moment = require('moment');
 const crawler_utils = require('../../utils/crawler_utils');
 let current_time = '';
 const { exec } = require("child_process");
-
+let pub = require("../pub_sub/pub")
 
 const JOB_FLASH_SALE = 'flash_sale_job';
 
@@ -60,7 +60,7 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
             dataJson.last_update = time;
             dataJson.price = await normalizeCurency(dataJson.price);
             if (Boolean(dataJson.href) && !dataJson.href.startsWith('https://shopee.vn') && dataJson.href.length > 0) {
-                dataJson.url="https://shopee.vn/"+dataJson.href;
+                dataJson.url = "https://shopee.vn/" + dataJson.href;
                 // Just add product, not event, card,...               
                 products.push(dataJson)
             }
@@ -98,7 +98,8 @@ async function get_product_detail(page, href, addToCart = false) {
         product.rated = rated.length > 0 ? 1 : 0;
         let price = document.querySelector('.AJyN7v').innerText;
         product.price = price;
-
+        let image = document.querySelector('._2wBoeW').style['background-image']
+        product.image = image;
         product.title = document.querySelector('._3ZV7fL').getElementsByTagName('span')[0].innerText;
         product.stock = document.querySelector('._2_ItKR').querySelector('.items-center').children[1].innerText.split(' ')[0];
         if (product.rated) {
@@ -117,6 +118,8 @@ async function get_product_detail(page, href, addToCart = false) {
     page_detail.last_update = current;
     page_detail.url = 'https://shopee.vn/' + href;
     page_detail.price = curency_util.normalize_curency(page_detail.price);
+    page_detail.image=crawler_utils.extractImage(page_detail.image);
+    
     /// Add to cart
     console.log('add cart: ' + addToCart + ' ' + disableCart);
     if (addToCart && !disableCart) {
@@ -135,7 +138,7 @@ async function get_product_detail(page, href, addToCart = false) {
 async function subscriberForProduct(product_href, min_price = 10000, interval = 300, addToCart = false) {
     let time_cron = '0 */30 * ? * *'; // every 30 minutes
     console.log('time cron: ' + time_cron);
-    const job = schedule.scheduleJob(time_cron, (date) => {
+    const job = schedule.scheduleJob('0 * * ? * *', (date) => {
         onJobDone(date, product_href, min_price, addToCart);
     });
 }
@@ -255,18 +258,11 @@ async function testLogin() {
 function publishProductNotifty(product_detail) {
     // Send by bot
     bot.telegram.sendMessage("-1001462115842", "Hỡi các idol, sản phẩm này đang giá ngon\n" + product_detail.url);
-    // Send by NATS
-    exec('node ../pub_sub/pub.js "product_sale " '+JSON.stringify(product_detail), (err, stdout, stderr) => {
-        if (err) {
-            // node couldn't execute the command
-            console.log('Can not publish message: ', err);
-            return;
-        }
 
-        // the *entire* stdout and stderr (buffered)
-        console.log(`stdout: ${stdout}`);
-        console.log(`stderr: ${stderr}`);
-    });
+    // Send by NATS
+    pub.publish(
+        "product_sale", product_detail
+    );
 }
 
 module.exports = {
