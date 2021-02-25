@@ -38,7 +38,10 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
     const current = new Date().getTime();
     console.log('time: ' + current);
     let normalizeCurency = (price) => crawler_utils.normalize_curency(price);
+    let extractImage = (value)=> crawler_utils.extractImage(value);
+
     await page.exposeFunction("normalizeCurency", normalizeCurency);
+    await page.exposeFunction("extractProductImage", extractImage);
     let data = await page.evaluate(async (time) => {
         let products = [];
         let product_wrapper = document.querySelectorAll('.flash-sale-item-card');
@@ -48,7 +51,7 @@ async function scanFlashSale(saveToDb = true, isHeadless = true) {
                 dataJson.href = product.querySelector('.flash-sale-item-card-link').getAttribute('href').split('/')[1];
 
                 image_element = product.querySelector('.flash-sale-item-card__animated-image').style['background-image'];
-                dataJson.image = image_element;
+                dataJson.image = extractProductImage(image_element);
 
                 dataJson.title = product.querySelector('.flash-sale-item-card__item-name').innerText;
 
